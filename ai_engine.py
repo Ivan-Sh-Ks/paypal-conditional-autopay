@@ -295,9 +295,6 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
     # Categories where one invoice/event should settle at most once.
     single_settlement_categories = {"BILL_CAP", "MILESTONE", "PRICE_DROP"}
 
-    # "Catch-all" trigger names may match on event category alone. A real vendor
-    # name (e.g. "SpeedNet Wi-Fi") must appear in the event, otherwise a Wi-Fi
-    # invoice would also settle the electricity mandate.
     generic_sources = {
         _compact(name) for name in (
             "", "inbound webhook", "external billing service", "paypal webhook",
@@ -321,8 +318,6 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
         elif event_type in ["PRICE_DROP_ALERT", "STOCK_UPDATE"] and rule["rule_category"] == "PRICE_DROP":
             category_match = True
 
-        # A specific vendor mandate only fires for that vendor. Catch-all
-        # mandates still fire on a matching event category.
         if not (source_match or (generic_source and category_match)):
             continue
 
@@ -370,11 +365,13 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
                 if api_trace.get("success"):
                     if api_trace.get("simulated"):
                         steps.append("[i] Demo mode: PayPal capture simulated locally (no live credentials connected).")
-                    # Paychecks/splits recur: keep the mandate armed so the next
-                    # deposit triggers the same downstream payment again.
+
                     updated_rule = db.increment_rule_executions(rule_id)
                     run_number = (updated_rule or {}).get("execution_count", 1)
-                    db.update_rule_status(rule_id, "ACTIVE_WAITING", None, None)
+
+                    # If recurring, keep ACTIVE_WAITING; otherwise mark EXECUTED
+                    final_status = "ACTIVE_WAITING" if rule.get("recurring") else "EXECUTED"
+                    db.update_rule_status(rule_id, final_status, None, None)
                     db.increment_metrics(saved_delta=0.0, settled_delta=payout_amt)
 
                     log_id = db.log_audit(
@@ -387,7 +384,7 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
                         verdict="CHAIN_TRIGGERED" if category == "CHAIN_REACTION" else "CAPTURED",
                         amount_impact=payout_amt
                     )
-                    results.append({"rule_id": rule_id, "verdict": "CAPTURED", "payout": payout_amt, "audit_log_id": log_id, "recurring": True, "execution_count": run_number, "simulated": bool(api_trace.get("simulated"))})
+                    results.append({"rule_id": rule_id, "verdict": "CAPTURED", "payout": payout_amt, "audit_log_id": log_id, "recurring": bool(rule.get("recurring")), "execution_count": run_number, "simulated": bool(api_trace.get("simulated"))})
                 else:
                     error = api_trace.get("error") or "Unknown PayPal API error"
                     steps.append(f"[✗] PayPal capture FAILED: {error}")
@@ -454,9 +451,7 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
                 if api_trace.get("success"):
                     if api_trace.get("simulated"):
                         steps.append("[i] Demo mode: PayPal capture simulated locally (no live credentials connected).")
-                    # Bills recur: a paid invoice keeps the mandate ARMED for the
-                    # next billing cycle instead of retiring it. Each settlement
-                    # is tracked via the execution counter.
+
                     updated_rule = db.increment_rule_executions(rule_id)
                     run_number = (updated_rule or {}).get("execution_count", 1)
                     db.update_rule_status(rule_id, "ACTIVE_WAITING", None, None)
@@ -508,7 +503,6 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
                     "timestamp": datetime.now().isoformat()
                 }
 
-                # Update rule to BLOCKED_BY_AI and store pending payload
                 db.update_rule_status(
                     rule_id=rule_id,
                     status="BLOCKED_BY_AI",
@@ -558,8 +552,7 @@ def evaluate_and_process_event(event_source: str, event_type: str, event_data: d
                 if api_trace.get("success"):
                     if api_trace.get("simulated"):
                         steps.append("[i] Demo mode: PayPal capture simulated locally (no live credentials connected).")
-                    # Milestones and price-drop purchases are one-shot: settle,
-                    # then require an explicit re-arm before spending again.
+
                     db.increment_rule_executions(rule_id)
                     db.update_rule_status(rule_id, "EXECUTED")
                     db.increment_metrics(saved_delta=0.0, settled_delta=target_amt)

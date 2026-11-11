@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PayPal Conditional Autopay — an AI mandate firewall that checks natural-language conditions before any payment is captured.">
+  <title>PayPal Conditional Autopay — AI Mandate Firewall</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='48' fill='%23001C3F'/><text x='50' y='68' font-size='58' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%2300CFE8'>P</text></svg>">
+  <style>
+    :root {
+      /* PayPal Official FinTech Palette */
+      --pp-navy: #001C3F;
+      --pp-blue: #0070BA;
+      --pp-blue-hover: #005EA6;
+      --pp-light-blue: #00CFE8;
+      --pp-bg: #F5F7FA;
+      --pp-surface: #FFFFFF;
+      --pp-border: #E1E7EE;
+      --pp-text: #0C1B2A;
+      --pp-muted: #556B82;
+      --pp-gold: #FFC439;
+      --pp-gold-hover: #F2BA36;
+      --success: #0E8A5E;
+      --success-bg: #EDFBF5;
+      --danger: #D9360B;
+      --danger-bg: #FDF2F0;
+      --warning: #B25E00;
+      --warning-bg: #FFF8EC;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--pp-bg);
+      color: var(--pp-text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+      outline: 3px solid rgba(0,112,186,0.35);
+      outline-offset: 2px;
+    }
+
+    /* Top Sticky Navigation Bar */
+    header {
+      background: var(--pp-surface);
+      border-bottom: 1px solid var(--pp-border);
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,28,63,0.04);
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      background: var(--pp-navy);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
+      font-weight: 900;
+      color: var(--pp-light-blue);
+      letter-spacing: -1px;
+      flex: 0 0 auto;
+    }
+
+    .brand-title h1 { font-size: 16px; font-weight: 700; color: var(--pp-navy); letter-spacing: -0.3px; }
+    .brand-title p { font-size: 11px; color: var(--pp-muted); font-weight: 500; }
+
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      background: #F1F4F8;
+      border: 1px solid var(--pp-border);
+      color: var(--pp-navy);
+      white-space: nowrap;
+    }
+
+    .status-badge.demo { background: var(--warning-bg); border-color: #F3D9B0; color: var(--warning); }
+    .status-badge.error { background: var(--danger-bg); border-color: #F6CFC5; color: var(--danger); }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex: 0 0 auto; }
+    .status-dot.connected { background: var(--success); box-shadow: 0 0 6px rgba(14,138,94,0.5); }
+    .status-dot.demo { background: var(--pp-gold); box-shadow: 0 0 6px rgba(255,196,57,0.6); }
+
+    .btn {
+      background: var(--pp-blue);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, opacity 0.15s ease, transform 0.05s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-family: inherit;
+    }
+
+    .btn:hover { background: var(--pp-blue-hover); }
+    .btn:active { transform: translateY(1px); }
+    .btn[disabled] { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .btn-secondary { background: var(--pp-surface); color: var(--pp-navy); border: 1px solid var(--pp-border); }
+    .btn-secondary:hover { background: #F1F4F8; border-color: #CBD5E1; }
+    .btn-gold { background: var(--pp-gold); color: #111; font-weight: 700; }
+    .btn-gold:hover { background: var(--pp-gold-hover); }
+    .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #B32600; }
+    .btn-success { background: var(--success); }
+    .btn-success:hover { background: #0A6947; }
+
+    .btn-sm { font-size: 11px; padding: 5px 12px; border-radius: 14px; }
+    .btn-text { background: none; color: var(--pp-blue); border: none; padding: 4px 6px; }
+    .btn-text:hover { background: #EBF4FC; }
+
+    /* Main Container */
+    .container { max-width: 1200px; margin: 28px auto; padding: 0 20px; }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--pp-surface);
+      border: 1px solid var(--pp-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 6px rgba(0,28,63,0.03);
+    }
+
+    .metric-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: var(--pp-muted);
+      margin-bottom: 6px;
+    }
+
+    .metric-val {
+      font-size: 28px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+    }
+
+    .metric-note { font-size: 11px; color: var(--pp-muted); margin-top: 4px; min-height: 15px; }
+
+    .val-saved { color: var(--success); }
+    .val-settled { color: var(--pp-blue); }
+    .val-blocked { color: var(--danger); }
+    .val-active { color: var(--pp-navy); }
+
+    /* 2-Column Layout */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+      header { padding: 12px 16px; }
+      .container { padding: 0 14px; margin: 18px auto; }
+    }
+
+    .panel {
+      background: var(--pp-surface);
+      border: 1px solid var(--pp-border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,28,63,0.03);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #EEF2F6;
+    }
+
+    .panel-header h2 { font-size: 15px; font-weight: 700; color: var(--pp-navy); }
+    .panel-sub { font-size: 12px; color: var(--pp-muted); margin-bottom: 12px; }
+
+    .form-group { margin-bottom: 14px; }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--pp-muted);
+      margin-bottom: 6px;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 8px;
+      color: var(--pp-text);
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.15s ease;
+    }
+
+    textarea:focus, input:focus, select:focus {
+      outline: none;
+      border-color: var(--pp-blue);
+      box-shadow: 0 0 0 3px rgba(0,112,186,0.12);
+    }
+
+    textarea { resize: vertical; min-height: 88px; }
+
+    .rule-templates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+    .template-chip {
+      font-size: 11px;
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      padding: 5px 10px;
+      border-radius: 16px;
+      cursor: pointer;
+      color: var(--pp-navy);
+      font-weight: 500;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+
+    .template-chip:hover { background: #E2E8F0; border-color: #CBD5E1; color: var(--pp-blue); }
+
+    /* Parsed preview */
+    .preview {
+      display: none;
+      border: 1px solid #BBDDF5;
+      background: #F6FAFE;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+
+    .preview.active { display: block; }
+
+    .preview-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--pp-blue);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .preview-grid .full { grid-column: 1 / -1; }
+    .preview label { margin-bottom: 3px; font-size: 11px; }
+    .preview input, .preview select { padding: 7px 10px; font-size: 12.5px; }
+
+    .preview-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+
+    @media (max-width: 560px) { .preview-grid { grid-template-columns: 1fr; } }
+
+    /* Mandate Cards */
+    .mandate-list { display: flex; flex-direction: column; gap: 12px; max-height: 560px; overflow-y: auto; }
+
+    .mandate-card {
+      background: #F8FAFC;
+      border: 1px solid var(--pp-border);
+      border-left: 4px solid var(--pp-blue);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .mandate-card.BLOCKED_BY_AI { border-left-color: var(--danger); background: var(--danger-bg); }
+    .mandate-card.EXECUTED { border-left-color: var(--success); background: var(--success-bg); }
+    .mandate-card.PAUSED { border-left-color: var(--warning); background: var(--warning-bg); }
+    .mandate-card.REJECTED { border-left-color: #7F1D1D; background: #FDF2F2; }
+    .mandate-card.OVERRIDDEN { border-left-color: #0EA5E9; background: #F0F9FF; }
+
+    .mandate-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+    .mandate-title { font-size: 14px; font-weight: 700; color: var(--pp-navy); }
+    .mandate-rule-text { font-size: 12px; color: var(--pp-muted); font-style: italic; margin-bottom: 10px; }
+    .mandate-tags { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; font-family: var(--font-mono); margin-bottom: 8px; }
+
+    .tag { background: #EBF4FC; color: var(--pp-blue); padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+    .tag.money { background: #E8F7F1; color: var(--success); }
+    .tag.muted { background: #EEF2F6; color: var(--pp-muted); }
+
+    .status-pill {
+      font-size: 10px;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+      background: #EBF4FC;
+      color: var(--pp-blue);
+    }
+
+    .status-pill.BLOCKED_BY_AI { background: #FBE3DE; color: var(--danger); }
+    .status-pill.EXECUTED { background: #D8F3E7; color: var(--success); }
+    .status-pill.PAUSED { background: #FCEBCF; color: var(--warning); }
+    .status-pill.REJECTED { background: #F5DADA; color: #7F1D1D; }
+    .status-pill.OVERRIDDEN { background: #D9F0FB; color: #0369A1; }
+
+    .hitl-alert {
+      background: #FFF;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+      box-shadow: 0 2px 6px rgba(217,54,11,0.08);
+    }
+
+    .hitl-alert p { font-size: 12px; font-weight: 600; color: var(--danger); margin-bottom: 10px; }
+    .hitl-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .mandate-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+    .empty-state { color: var(--pp-muted); font-size: 12px; text-align: center; padding: 28px 16px; }
+    .empty-state p { margin-bottom: 12px; }
+
+    /* Logs & Traces */
+    .log-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .log-toolbar select { width: auto; padding: 5px 10px; font-size: 12px; }
+
+    .log-container {
+      background: #0C1B2A;
+      border-radius: 10px;
+      padding: 8px 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      max-height: 460px;
+      overflow-y: auto;
+      color: #E2E8F0;
+    }
+
+    .log-entry { padding: 8px 0; border-bottom: 1px solid #1A2E44; }
+    .log-entry:last-child { border-bottom: none; }
+
+    .log-entry summary {
+      cursor: pointer;
+      list-style: none;
+      display: block;
+      padding: 2px 0;
+    }
+
+    .log-entry summary::-webkit-details-marker { display: none; }
+
+    .log-header { display: flex; justify-content: space-between; gap: 10px; color: #94A3B8; font-size: 11px; margin-bottom: 4px; flex-wrap: wrap; }
+    .log-verdict { font-weight: 700; }
+    .verdict-CAPTURED { color: #34D399; }
+    .verdict-CHAIN_TRIGGERED { color: #34D399; }
+    .verdict-BLOCKED { color: #F87171; }
+    .verdict-PAYMENT_FAILED { color: #F87171; }
+    .verdict-HOLD_INSUFFICIENT_TRIGGER { color: #FBBF24; }
+    .verdict-USER_OVERRIDE { color: #38BDF8; }
+    .verdict-DISPUTED { color: #C4B5FD; }
+
+    .step-line { margin-left: 12px; color: #CBD5E1; font-size: 11.5px; }
+    .log-detail { margin: 8px 0 4px 12px; }
+    .log-detail h4 { color: #94A3B8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; margin: 8px 0 4px; }
+    .log-detail pre {
+      background: #081422;
+      border: 1px solid #1A2E44;
+      color: #A7B7C9;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 10.5px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 220px;
+      overflow: auto;
+    }
+
+    .log-empty { color: #94A3B8; text-align: center; padding: 20px 0; }
+
+    /* Toast */
+    .toast-stack {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2000;
+      max-width: min(380px, calc(100vw - 36px));
+    }
+
+    .toast {
+      background: var(--pp-navy);
+      color: #fff;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      box-shadow: 0 10px 24px rgba(0,28,63,0.25);
+      border-left: 4px solid var(--pp-light-blue);
+      animation: toast-in 0.18s ease-out;
+      line-height: 1.4;
+    }
+
+    .toast.success { border-left-color: #34D399; }
+    .toast.error { border-left-color: #F87171; }
+    .toast.warning { border-left-color: var(--pp-gold); }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 28, 63, 0.45);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+    }
+
+    .modal-backdrop.active { display: flex; }
+    .modal {
+      background: var(--pp-surface);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 540px;
+      padding: 26px;
+      box-shadow: 0 16px 36px rgba(0,28,63,0.15);
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      border-bottom: 1px solid #EEF2F6;
+      padding-bottom: 10px;
+    }
+
+    .modal-header h3 { font-size: 16px; font-weight: 700; color: var(--pp-navy); }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--pp-muted);
+      font-size: 24px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+
+    .close-btn:hover { background: #F1F4F8; }
+
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+
+    .hint {
+      font-size: 11px;
+      color: var(--pp-muted);
+      background: #F6F8FB;
+      border: 1px solid var(--pp-border);
+      border-radius: 8px;
+      padding: 9px 11px;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+
+    .hint strong { color: var(--pp-navy); }
+
+    .inline-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    @media (max-width: 560px) { .inline-row { grid-template-columns: 1fr; } }
+
+    .check-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--pp-text); }
+    .check-row input { width: auto; }
+
+    footer {
+      max-width: 1200px;
+      margin: 0 auto 28px;
+      padding: 0 20px;
+      color: var(--pp-muted);
+      font-size: 11.5px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    footer code { font-family: var(--font-mono); background: #EDF1F6; padding: 2px 6px; border-radius: 4px; }
+    .muted { color: var(--pp-muted); }
+    .small { font-size: 11px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div class="brand-title">
+        <h1>PayPal Conditional Autopay</h1>
+        <p>AI Mandate Firewall &bull; Autonomous Settlement Engine</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="status-badge" id="conn-badge" title="PayPal connection status">
+        <span class="status-dot" id="conn-dot"></span>
+        <span id="conn-text">DISCONNECTED</span>
+      </div>
+      <button class="btn btn-secondary" onclick="openSettings()">Settings</button>
+      <button class="btn btn-secondary" onclick="resetDemo()" title="Clear mandates, audit logs and totals">Reset demo</button>
+      <button class="btn btn-gold" onclick="openModal('sim-modal')">⚡ Trigger Webhook</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Metrics Row -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Protected by AI Firewall</div>
+        <div class="metric-val val-saved" id="m-saved">$0.00</div>
+        <div class="metric-note">Spend blocked before capture</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Auto-Settled via Orders v2</div>
+        <div class="metric-val val-settled" id="m-settled">$0.00</div>
+        <div class="metric-note" id="m-settled-note">Released by verified conditions</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Active Mandates</div>
+        <div class="metric-val val-active" id="m-active">0</div>
+        <div class="metric-note" id="m-active-note">Armed and listening</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Needs Human Review</div>
+        <div class="metric-val val-blocked" id="m-blocked">0</div>
+        <div class="metric-note">Frozen by the firewall</div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Rule Input & Active Mandates -->
+    <div class="grid-2">
+      <!-- Rule Creator -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Create Conditional Mandate</h2>
+          <span class="small" style="color: var(--pp-blue); font-family: var(--font-mono); font-weight: 600;">Gemini 2.5 Flash</span>
+        </div>
+        <p class="panel-sub">
+          Describe the payment boundary in plain English. Parse it, review the extracted fields, then arm the firewall.
+        </p>
+
+        <div class="form-group">
+          <label for="rule-input">Natural-language rule</label>
+          <textarea id="rule-input" rows="4" placeholder="e.g. Auto-pay Wi-Fi bill from billing@speednet.com only if total is $50 or less"></textarea>
+          <div class="rule-templates" aria-label="Example rules">
+            <button class="template-chip" type="button" onclick="setTemplate(1)">Wi-Fi cap ($50)</button>
+            <button class="template-chip" type="button" onclick="setTemplate(2)">Paycheck → rent ($500)</button>
+            <button class="template-chip" type="button" onclick="setTemplate(3)">Client split ($100)</button>
+            <button class="template-chip" type="button" onclick="setTemplate(4)">Milestone escrow ($250)</button>
+            <button class="template-chip" type="button" onclick="setTemplate(5)">Price sniper ($199)</button>
+          </div>
+        </div>
+
+        <button class="btn" id="parse-btn" style="width: 100%; padding: 10px;" onclick="parseRule()">Parse Rule with AI</button>
+
+        <!-- AI parse preview / editable confirmation -->
+        <div class="preview" id="preview" aria-live="polite">
+          <div class="preview-title">
+            <span>✓ Review parsed mandate before arming</span>
+            <button class="btn-text small" type="button" onclick="hidePreview()">Dismiss</button>
+          </div>
+          <div class="preview-grid">
+            <div class="full">
+              <label for="pv-title">Title</label>
+              <input type="text" id="pv-title">
+            </div>
+            <div>
+              <label for="pv-category">Category</label>
+              <select id="pv-category">
+                <option value="BILL_CAP">Bill cap (invoice guard)</option>
+                <option value="CHAIN_REACTION">Chain reaction (incoming → outgoing)</option>
+                <option value="SPLIT_PAYMENT">Split payment (revenue share)</option>
+                <option value="MILESTONE">Milestone escrow</option>
+                <option value="PRICE_DROP">Price drop sniper</option>
+              </select>
+            </div>
+            <div>
+              <label for="pv-trigger">Trigger source</label>
+              <input type="text" id="pv-trigger">
+            </div>
+            <div>
+              <label for="pv-payee">Payee name</label>
+              <input type="text" id="pv-payee">
+            </div>
+            <div>
+              <label for="pv-email">Payee PayPal email</label>
+              <input type="email" id="pv-email">
+            </div>
+            <div>
+              <label for="pv-amount">Payout amount ($)</label>
+              <input type="number" id="pv-amount" min="0" step="0.01">
+            </div>
+            <div>
+              <label for="pv-operator">Condition</label>
+              <select id="pv-operator">
+                <option value="<=">≤ (at most)</option>
+                <option value=">=">≥ (at least)</option>
+                <option value="==">= (exactly)</option>
+              </select>
+            </div>
+            <div class="full">
+              <label for="pv-threshold">Threshold ($)</label>
+              <input type="number" id="pv-threshold" min="0" step="0.01">
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button class="btn btn-secondary" type="button" onclick="hidePreview()">Cancel</button>
+            <button class="btn btn-success" id="arm-btn" type="button" onclick="armRule()">Arm AI Mandate Firewall</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Mandates List -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Mandates</h2>
+          <span id="mandate-count" class="small" style="font-family: var(--font-mono); color: var(--pp-blue); font-weight: 600;">0 mandates</span>
+        </div>
+        <div class="mandate-list" id="mandates-container">
+          <div class="empty-state">
+            <p>No mandates armed yet.</p>
+            <button class="btn btn-secondary btn-sm" type="button" onclick="seedDemo()">Load demo scenario</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Audit Ledger -->
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Security &amp; PayPal API Audit Ledger</h2>
+        <div class="log-toolbar">
+          <span class="small muted" id="last-updated">—</span>
+          <select id="log-filter" onchange="renderLogs(window.__logs || [])" aria-label="Filter audit entries">
+            <option value="ALL">All verdicts</option>
+            <option value="CAPTURED">Captured</option>
+            <option value="BLOCKED">Blocked</option>
+            <option value="HOLD">Held / deferred</option>
+            <option value="FAILED">Failed</option>
+            <option value="HUMAN">Human actions</option>
+          </select>
+        </div>
+      </div>
+      <div class="log-container" id="logs-container">
+        <div class="log-empty">Waiting for incoming webhook events…</div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Demo mode simulates captures locally. Connect PayPal credentials to use live sandbox/live APIs.</span>
+    <span>API: <code>POST /api/webhooks/external</code> &bull; <code>POST /api/webhooks/paypal</code></span>
+  </footer>
+
+  <!-- Settings Modal -->
+  <div class="modal-backdrop" id="settings-modal" onclick="backdropClose(event, 'settings-modal')">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-header">
+        <h3 id="settings-title">PayPal &amp; AI Configuration</h3>
+        <button class="close-btn" type="button" onclick="closeModal('settings-modal')" aria-label="Close">&times;</button>
+      </div>
+
+      <div class="hint" id="settings-state-hint">
+        Demo / offline mode is active. Rules, parsing and webhooks work without credentials; captures are simulated.
+      </div>
+
+      <div class="form-group">
+        <label for="cfg-env">Environment</label>
+        <select id="cfg-env">
+          <option value="sandbox">Sandbox (api-m.sandbox.paypal.com)</option>
+          <option value="live">Live (api-m.paypal.com)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="cfg-client-id">PayPal Client ID</label>
+        <input type="text" id="cfg-client-id" placeholder="From the PayPal Developer Dashboard" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="cfg-client-secret">PayPal Client Secret</label>
+        <input type="password" id="cfg-client-secret" placeholder="Leave blank to keep the saved secret" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label for="cfg-merchant-email">Merchant email (optional)</label>
+        <input type="email" id="cfg-merchant-email" placeholder="merchant@example.com" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="cfg-gemini-key">Gemini API key (optional NLP override)</label>
+        <input type="password" id="cfg-gemini-key" placeholder="Leave blank to keep the saved key" autocomplete="new-password">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" onclick="closeModal('settings-modal')">Cancel</button>
+        <button class="btn" id="save-settings-btn" type="button" onclick="saveSettings()">Save &amp; Authenticate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webhook Simulator Modal -->
+  <div class="modal-backdrop" id="sim-modal" onclick="backdropClose(event, 'sim-modal')">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sim-title">
+      <div class="modal-header">
+        <h3 id="sim-title">⚡ Webhook Simulator</h3>
+        <button class="close-btn" type="button" onclick="closeModal('sim-modal')" aria-label="Close">&times;</button>
+      </div>
+      <p class="panel-sub">
+        Fire an inbound event to see the firewall evaluate conditions before funds move.
+      </p>
+
+      <div class="form-group">
+        <label for="sim-preset">Scenario preset</label>
+        <select id="sim-preset" onchange="applyPreset()">
+          <option value="fair-wifi">Fair Wi-Fi bill ($45 ≤ $50 cap) → instant settle</option>
+          <option value="spiked-wifi">Spiked Wi-Fi bill ($85 &gt; $50 cap) → AI freeze</option>
+          <option value="full-paycheck">Full paycheck ($1,200) → triggers rent ($500)</option>
+          <option value="short-paycheck">Short paycheck ($600) → held to prevent overdraft</option>
+          <option value="client-payment">Client payment ($300) → designer split ($100)</option>
+          <option value="milestone">Verified milestone → release escrow</option>
+          <option value="price-drop">Price drop / restock → buy</option>
+          <option value="custom">Custom event…</option>
+        </select>
+      </div>
+
+      <div class="inline-row">
+        <div class="form-group">
+          <label for="sim-event">Event type</label>
+          <select id="sim-event" onchange="syncSimFields()">
+            <option value="INVOICE_BILLING">INVOICE_BILLING</option>
+            <option value="PAYMENT.CAPTURE.COMPLETED">PAYMENT.CAPTURE.COMPLETED</option>
+            <option value="MILESTONE_WEBHOOK">MILESTONE_WEBHOOK</option>
+            <option value="PRICE_DROP_ALERT">PRICE_DROP_ALERT</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="sim-amount">Payload amount ($)</label>
+          <input type="number" id="sim-amount" value="45.00" step="0.01" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sim-source">Trigger source</label>
+        <input type="text" id="sim-source" value="SpeedNet Wi-Fi">
+      </div>
+
+      <div class="form-group" id="sim-milestone-row" style="display:none;">
+        <label class="check-row">
+          <input type="checkbox" id="sim-checksum" checked>
+          Artifact checksum verified
+        </label>
+      </div>
+      <div class="form-group" id="sim-stock-row" style="display:none;">
+        <label class="check-row">
+          <input type="checkbox" id="sim-instock" checked>
+          Item is in stock
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" type="button" onclick="closeModal('sim-modal')">Cancel</button>
+        <button class="btn btn-gold" id="dispatch-btn" type="button" onclick="dispatchWebhook()">Send Webhook</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
+  <script>
+    const templates = {
+      1: "Auto-pay invoices from billing@speednet.com only if total is $50 or less",
+      2: "Pay landlord@metroprop.com $500 for rent ONLY AFTER incoming paycheck of at least $1,000 arrives",
+      3: "Send $100 to rahul@designcraft.io the exact moment Client Corp pays $300 or more",
+      4: "Release $250 to maya@editpro.com when the GitHub milestone proof/checksum is verified",
+      5: "Buy the TechGear cooling pad for $199 only if the price drops to $179 or less and it is in stock"
+    };
+
+    const presets = {
+      "fair-wifi":      { event: "INVOICE_BILLING", source: "SpeedNet Wi-Fi", amount: 45, milestone: false, stock: false },
+      "spiked-wifi":    { event: "INVOICE_BILLING", source: "SpeedNet Wi-Fi", amount: 85, milestone: false, stock: false },
+      "full-paycheck":  { event: "PAYMENT.CAPTURE.COMPLETED", source: "Employer Paycheck", amount: 1200, milestone: false, stock: false },
+      "short-paycheck": { event: "PAYMENT.CAPTURE.COMPLETED", source: "Employer Paycheck", amount: 600, milestone: false, stock: false },
+      "client-payment": { event: "PAYMENT.CAPTURE.COMPLETED", source: "Client Corp", amount: 300, milestone: false, stock: false },
+      "milestone":      { event: "MILESTONE_WEBHOOK", source: "GitHub Milestone", amount: 250, milestone: true, stock: false },
+      "price-drop":     { event: "PRICE_DROP_ALERT", source: "Price Tracker Webhook", amount: 179, milestone: false, stock: true },
+      "custom":         { event: "INVOICE_BILLING", source: "", amount: 0, milestone: false, stock: false }
+    };
+
+    let lastStateHash = "";
+    let lastState = null;
+    let logFilter = "ALL";
+
+    /* ---------- utilities ---------- */
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function money(value) {
+      const n = Number(value || 0);
+      return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function timeOnly(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? String(iso) : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function toast(message, type) {
+      const stack = document.getElementById("toast-stack");
+      const el = document.createElement("div");
+      el.className = "toast " + (type || "");
+      el.textContent = message;
+      stack.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = "0";
+        el.style.transition = "opacity 0.25s ease";
+        setTimeout(() => el.remove(), 260);
+      }, 4200);
+    }
+
+    function setBusy(button, busy, busyLabel) {
+      if (!button) return;
+      if (busy) {
+        button.dataset.originalLabel = button.textContent;
+        button.textContent = busyLabel || "Working…";
+        button.disabled = true;
+      } else {
+        button.textContent = button.dataset.originalLabel || button.textContent;
+        button.disabled = false;
+      }
+    }
+
+    async function readJson(res) {
+      let data = null;
+      try { data = await res.json(); } catch (err) { data = null; }
+      if (!res.ok) {
+        const message = (data && (data.error || (data.errors && data.errors.join(" ")))) || ("Request failed (" + res.status + ")");
+        throw new Error(message);
+      }
+      return data || {};
+    }
+
+    /* ---------- modals ---------- */
+
+    function openModal(id) {
+      document.getElementById(id).classList.add("active");
+      const focusable = document.querySelector("#" + id + " input, #" + id + " select, #" + id + " button");
+      if (focusable) setTimeout(() => focusable.focus(), 30);
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove("active");
+    }
+
+    function backdropClose(event, id) {
+      if (event.target && event.target.id === id) closeModal(id);
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        document.querySelectorAll(".modal-backdrop.active").forEach((el) => el.classList.remove("active"));
+      }
+    });
+
+    /* ---------- state loading ---------- */
+
+    function stateHash(data) {
+      return JSON.stringify([data.metrics, data.account.connected_status, data.account.environment,
+        data.config, data.rules.map(r => [r.id, r.status, r.updated_at]),
+        data.audit_logs.map(l => l.id)]);
+    }
+
+    async function refreshState(force) {
+      try {
+        const res = await fetch("/api/state", { cache: "no-store" });
+        const data = await readJson(res);
+        if (!data.success) return;
+
+        lastState = data;
+        window.__logs = data.audit_logs;
+        const hash = stateHash(data);
+        const changed = force || hash !== lastStateHash;
+
+        renderConnection(data);
+        renderMetrics(data);
+
+        if (changed) {
+          lastStateHash = hash;
+          renderRules(data.rules);
+          renderLogs(data.audit_logs);
+          document.getElementById("last-updated").textContent = "Updated " + new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        console.error("State sync failed", err);
+      }
+    }
+
+    function renderConnection(data) {
+      const badge = document.getElementById("conn-badge");
+      const dot = document.getElementById("conn-dot");
+      const txt = document.getElementById("conn-text");
+      const status = data.account.connected_status || "DISCONNECTED";
+
+      badge.className = "status-badge";
+      dot.className = "status-dot";
+
+      if (status === "CONNECTED") {
+        dot.classList.add("connected");
+        txt.textContent = data.account.environment.toUpperCase() + " CONNECTED";
+        badge.title = "Live PayPal " + data.account.environment + " credentials verified";
+      } else if (status === "ERROR") {
+        dot.classList.add("error");
+        badge.classList.add("error");
+        txt.textContent = "AUTH ERROR";
+        badge.title = "PayPal credentials were saved but the OAuth handshake failed";
+      } else {
+        dot.classList.add("demo");
+        badge.classList.add("demo");
+        txt.textContent = "DEMO MODE";
+        badge.title = "No PayPal credentials connected — captures are simulated locally";
+      }
+    }
+
+    function renderMetrics(data) {
+      const m = data.metrics;
+      document.getElementById("m-saved").textContent = money(m.total_saved_by_ai);
+      document.getElementById("m-settled").textContent = money(m.total_auto_settled);
+      document.getElementById("m-active").textContent = m.active_mandates;
+      document.getElementById("m-blocked").textContent = m.blocked_mandates;
+      document.getElementById("mandate-count").textContent = m.total_mandates + (m.total_mandates === 1 ? " mandate" : " mandates");
+      document.getElementById("m-active-note").textContent = m.total_mandates + " total • " + m.blocked_mandates + " frozen";
+      document.getElementById("m-settled-note").textContent = data.demo_mode
+        ? "Simulated local captures (demo mode)"
+        : "Released by verified conditions";
+    }
+
+    /* ---------- mandates ---------- */
+
+    const STATUS_LABELS = {
+      ACTIVE_WAITING: "ARMED",
+      PAUSED: "PAUSED",
+      BLOCKED_BY_AI: "NEEDS REVIEW",
+      EXECUTED: "SETTLED",
+      REJECTED: "DISPUTED",
+      OVERRIDDEN: "OVERRIDDEN"
+    };
+
+    function renderRules(rules) {
+      const container = document.getElementById("mandates-container");
+      if (!rules || !rules.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No mandates armed yet. Create one on the left, or load a ready-made demo.</p>
+            <button class="btn btn-secondary btn-sm" type="button" onclick="seedDemo()">Load demo scenario</button>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = rules.map((r) => {
+        const status = r.status || "ACTIVE_WAITING";
+        const guard = `${escapeHtml(r.condition_operator)} ${money(r.condition_threshold)}`;
+        const payout = Number(r.payment_amount || 0);
+        const showActions = status === "BLOCKED_BY_AI"
+          ? `<button class="btn btn-success btn-sm" type="button" onclick="overrideRule(${r.id})">Approve &amp; pay</button>
+             <button class="btn btn-danger btn-sm" type="button" onclick="rejectRule(${r.id})">Reject &amp; dispute</button>`
+          : (status === "ACTIVE_WAITING"
+            ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleRule(${r.id})">Pause</button>`
+            : (status === "PAUSED"
+              ? `<button class="btn btn-secondary btn-sm" type="button" onclick="toggleRule(${r.id})">Resume</button>`
+              : `<button class="btn btn-secondary btn-sm" type="button" onclick="rearmRule(${r.id})">Re-arm</button>`));
+
+        return `
+          <div class="mandate-card ${escapeHtml(status)}">
+            <div class="mandate-card-header">
+              <span class="mandate-title">${escapeHtml(r.title)}</span>
+              <span class="status-pill ${escapeHtml(status)}">${escapeHtml(STATUS_LABELS[status] || status)}</span>
+            </div>
+            ${r.natural_language_rule ? `<div class="mandate-rule-text">"${escapeHtml(r.natural_language_rule)}"</div>` : ""}
+            <div class="mandate-tags">
+              <span class="tag">${escapeHtml(r.rule_category)}</span>
+              <span class="tag">Trigger: ${escapeHtml(r.trigger_source)}</span>
+              <span class="tag">Guard: ${guard}</span>
+              ${payout > 0 ? `<span class="tag money">Payout ${money(payout)}</span>` : ""}
+              <span class="tag muted">${escapeHtml(r.recipient_name)} &lt;${escapeHtml(r.recipient_paypal_email)}&gt;</span>
+            </div>
+
+            ${status === "BLOCKED_BY_AI" ? `
+              <div class="hitl-alert">
+                <p>⚠ Price spike detected: vendor presented ${money(r.pending_invoice_amount)} against a ${money(r.condition_threshold)} cap. $0.00 was captured.</p>
+                <div class="hitl-actions">
+                  <button class="btn btn-success btn-sm" type="button" onclick="overrideRule(${r.id})">Approve &amp; pay ${money(r.pending_invoice_amount)}</button>
+                  <button class="btn btn-danger btn-sm" type="button" onclick="rejectRule(${r.id})">Reject &amp; dispute</button>
+                </div>
+              </div>` : ""}
+
+            <div class="mandate-actions">
+              ${showActions}
+              <button class="btn btn-danger btn-sm" type="button" onclick="deleteRule(${r.id})">Delete</button>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    /* ---------- audit ledger ---------- */
+
+    function verdictMatchesFilter(verdict, filter) {
+      if (filter === "ALL") return true;
+      if (filter === "CAPTURED") return verdict === "CAPTURED" || verdict === "CHAIN_TRIGGERED";
+      if (filter === "BLOCKED") return verdict === "BLOCKED";
+      if (filter === "HOLD") return verdict === "HOLD_INSUFFICIENT_TRIGGER";
+      if (filter === "FAILED") return verdict === "PAYMENT_FAILED";
+      if (filter === "HUMAN") return verdict === "USER_OVERRIDE" || verdict === "DISPUTED";
+      return true;
+    }
+
+    function renderLogs(logs) {
+      const container = document.getElementById("logs-container");
+      const filter = document.getElementById("log-filter").value;
+      const filtered = (logs || []).filter((l) => verdictMatchesFilter(l.verdict, filter));
+
+      if (!filtered.length) {
+        container.innerHTML = `<div class="log-empty">${logs && logs.length ? "No entries match this filter." : "Waiting for incoming webhook events…"}</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((l) => {
+        const steps = Array.isArray(l.ai_reasoning_steps) ? l.ai_reasoning_steps : [];
+        const trace = typeof l.paypal_api_trace === "string" ? l.paypal_api_trace : JSON.stringify(l.paypal_api_trace, null, 2);
+        const raw = typeof l.raw_webhook_json === "string" ? l.raw_webhook_json : JSON.stringify(l.raw_webhook_json, null, 2);
+        const simulated = /simulated|dry_run/i.test(trace);
+        return `
+          <details class="log-entry">
+            <summary>
+              <div class="log-header">
+                <span>${escapeHtml(timeOnly(l.timestamp))} &bull; ${escapeHtml(l.event_source)}${simulated ? " &bull; SIMULATED" : ""}</span>
+                <span class="log-verdict verdict-${escapeHtml(l.verdict)}">${escapeHtml(l.verdict)}</span>
+              </div>
+              <div style="font-weight: 600; margin-bottom: 4px; color: #FFF;">${escapeHtml(l.event_title)}</div>
+              ${steps.slice(0, 2).map((s) => `<div class="step-line">${escapeHtml(s)}</div>`).join("")}
+              ${steps.length > 2 ? `<div class="step-line" style="color:#64748B;">…click to expand ${steps.length - 2} more step${steps.length - 2 === 1 ? "" : "s"}</div>` : ""}
+            </summary>
+            <div class="log-detail">
+              <h4>AI reasoning</h4>
+              ${steps.map((s) => `<div class="step-line">${escapeHtml(s)}</div>`).join("")}
+              <h4>PayPal API trace</h4>
+              <pre>${escapeHtml(trace || "—")}</pre>
+              <h4>Raw inbound payload</h4>
+              <pre>${escapeHtml(raw || "—")}</pre>
+            </div>
+          </details>`;
+      }).join("");
+    }
+
+    /* ---------- rule creation ---------- */
+
+    function setTemplate(idx) {
+      document.getElementById("rule-input").value = templates[idx];
+      document.getElementById("rule-input").focus();
+    }
+
+    function showPreview(parsed) {
+      document.getElementById("pv-title").value = parsed.title || "";
+      document.getElementById("pv-category").value = parsed.rule_category || "BILL_CAP";
+      document.getElementById("pv-trigger").value = parsed.trigger_source || "";
+      document.getElementById("pv-payee").value = parsed.recipient_name || "";
+      document.getElementById("pv-email").value = parsed.recipient_paypal_email || "";
+      document.getElementById("pv-amount").value = Number(parsed.payment_amount || 0).toFixed(2);
+      document.getElementById("pv-operator").value = parsed.condition_operator || "<=";
+      document.getElementById("pv-threshold").value = Number(parsed.condition_threshold || 0).toFixed(2);
+      document.getElementById("preview").classList.add("active");
+      document.getElementById("preview").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.getElementById("pv-title").focus();
+    }
+
+    function hidePreview() {
+      document.getElementById("preview").classList.remove("active");
+    }
+
+    async function parseRule() {
+      const text = document.getElementById("rule-input").value.trim();
+      if (!text) {
+        toast("Type a rule (or pick an example chip) first.", "warning");
+        document.getElementById("rule-input").focus();
+        return;
+      }
+
+      const button = document.getElementById("parse-btn");
+      setBusy(button, true, "Parsing with AI…");
+      try {
+        const res = await fetch("/api/parse-rule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const data = await readJson(res);
+        if (!data.success) throw new Error(data.error || "Could not parse that rule.");
+        showPreview(data.parsed);
+        toast("Rule parsed. Review the fields, then arm the mandate.", "success");
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        setBusy(button, false);
+      }
+    }
+
+    async function armRule() {
+      const payload = {
+        title: document.getElementById("pv-title").value.trim(),
+        natural_language_rule: document.getElementById("rule-input").value.trim(),
+        rule_category: document.getElementById("pv-category").value,
+        trigger_source: document.getElementById("pv-trigger").value.trim(),
+        recipient_name: document.getElementById("pv-payee").value.trim(),
+        recipient_paypal_email: document.getElementById("pv-email").value.trim(),
+        payment_amount: parseFloat(document.getElementById("pv-amount").value || "0"),
+        condition_operator: document.getElementById("pv-operator").value,
+        condition_threshold: parseFloat(document.getElementById("pv-threshold").value || "0"),
+        currency: "USD"
+      };
+
+      if (!payload.title) return toast("Add a title before arming.", "warning");
+      if (!/^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/.test(payload.recipient_paypal_email)) {
+        return toast("Enter a valid PayPal email for the payee.", "warning");
+      }
+      if (!(payload.condition_threshold >= 0)) return toast("Threshold must be zero or greater.", "warning");
+      if (!(payload.payment_amount >= 0)) return toast("Payout amount cannot be negative.", "warning");
+      if (["CHAIN_REACTION", "SPLIT_PAYMENT", "MILESTONE", "PRICE_DROP"].includes(payload.rule_category) && payload.payment_amount <= 0) {
+        return toast("This mandate type needs a payout amount greater than zero.", "warning");
+      }
+
+      const button = document.getElementById("arm-btn");
+      setBusy(button, true, "Arming…");
+      try {
+        const res = await fetch("/api/rules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await readJson(res);
+        if (!data.success) throw new Error(data.error || "Could not create the mandate.");
+        document.getElementById("rule-input").value = "";
+        hidePreview();
+        toast("Mandate armed. The firewall is listening for matching events.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        setBusy(button, false);
+      }
+    }
+
+    /* ---------- mandate actions ---------- */
+
+    async function toggleRule(id) {
+      try {
+        const res = await fetch(`/api/rules/${id}/toggle`, { method: "PATCH" });
+        await readJson(res);
+        toast("Mandate status updated.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    async function rearmRule(id) {
+      try {
+        const res = await fetch(`/api/rules/${id}/rearm`, { method: "POST" });
+        await readJson(res);
+        toast("Mandate re-armed and listening again.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    async function deleteRule(id) {
+      if (!confirm("Delete this mandate permanently? Its audit history is kept.")) return;
+      try {
+        const res = await fetch(`/api/rules/${id}`, { method: "DELETE" });
+        await readJson(res);
+        toast("Mandate deleted.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    async function overrideRule(id) {
+      if (!confirm("Force-capture this blocked invoice? Real funds move if live credentials are connected.")) return;
+      try {
+        const res = await fetch(`/api/rules/${id}/override`, { method: "POST" });
+        const data = await readJson(res);
+        toast(data.result && data.result.api_trace && data.result.api_trace.simulated
+          ? "Override approved (simulated capture in demo mode)."
+          : "Override approved and captured via PayPal.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    async function rejectRule(id) {
+      if (!confirm("Reject and dispute this invoice? The mandate will be closed.")) return;
+      try {
+        const res = await fetch(`/api/rules/${id}/reject`, { method: "POST" });
+        await readJson(res);
+        toast("Invoice rejected and dispute recorded.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    /* ---------- demo helpers ---------- */
+
+    async function seedDemo() {
+      try {
+        const res = await fetch("/api/demo/seed", { method: "POST" });
+        const data = await readJson(res);
+        toast(data.created ? `Loaded ${data.created} demo mandate(s).` : "Demo mandates are already loaded.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    async function resetDemo() {
+      if (!confirm("Clear all mandates, audit logs and totals? Credentials are kept.")) return;
+      try {
+        const res = await fetch("/api/demo/reset", { method: "POST" });
+        await readJson(res);
+        toast("Demo data cleared.", "success");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    }
+
+    /* ---------- settings ---------- */
+
+    function openSettings() {
+      const account = (lastState && lastState.account) || {};
+      document.getElementById("cfg-env").value = account.environment || "sandbox";
+      document.getElementById("cfg-client-id").value = account.client_id || "";
+      document.getElementById("cfg-client-secret").value = "";
+      document.getElementById("cfg-merchant-email").value = account.merchant_email || "";
+      document.getElementById("cfg-gemini-key").value = "";
+
+      const hint = document.getElementById("settings-state-hint");
+      if (account.connected_status === "CONNECTED") {
+        hint.innerHTML = "<strong>Connected.</strong> " + escapeHtml(account.environment.toUpperCase()) +
+          " credentials are active. Leave the secret blank to keep the saved value.";
+      } else if (account.connected_status === "ERROR") {
+        hint.innerHTML = "<strong>Authentication failed.</strong> Re-enter the credentials and save to retry the OAuth handshake.";
+      } else {
+        hint.innerHTML = "<strong>Demo / offline mode.</strong> Rules, parsing and webhooks work without credentials; captures are simulated.";
+      }
+      openModal("settings-modal");
+    }
+
+    async function saveSettings() {
+      const payload = {
+        environment: document.getElementById("cfg-env").value,
+        client_id: document.getElementById("cfg-client-id").value.trim(),
+        client_secret: document.getElementById("cfg-client-secret").value.trim(),
+        merchant_email: document.getElementById("cfg-merchant-email").value.trim(),
+        gemini_api_key: document.getElementById("cfg-gemini-key").value.trim()
+      };
+
+      const button = document.getElementById("save-settings-btn");
+      setBusy(button, true, "Authenticating…");
+      try {
+        const res = await fetch("/api/settings/paypal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await readJson(res);
+        toast(data.message || "Settings saved.", "success");
+        closeModal("settings-modal");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        setBusy(button, false);
+      }
+    }
+
+    /* ---------- webhook simulator ---------- */
+
+    function applyPreset() {
+      const preset = presets[document.getElementById("sim-preset").value] || presets["custom"];
+      document.getElementById("sim-event").value = preset.event;
+      document.getElementById("sim-source").value = preset.source;
+      document.getElementById("sim-amount").value = preset.amount.toFixed(2);
+      document.getElementById("sim-checksum").checked = true;
+      document.getElementById("sim-instock").checked = true;
+      document.getElementById("sim-milestone-row").style.display = preset.milestone ? "block" : "none";
+      document.getElementById("sim-stock-row").style.display = preset.stock ? "block" : "none";
+    }
+
+    function syncSimFields() {
+      const eventType = document.getElementById("sim-event").value;
+      document.getElementById("sim-milestone-row").style.display = eventType === "MILESTONE_WEBHOOK" ? "block" : "none";
+      document.getElementById("sim-stock-row").style.display = eventType === "PRICE_DROP_ALERT" ? "block" : "none";
+    }
+
+    async function dispatchWebhook() {
+      const eventType = document.getElementById("sim-event").value;
+      const source = document.getElementById("sim-source").value.trim();
+      const amount = parseFloat(document.getElementById("sim-amount").value || "0");
+
+      if (!source) return toast("Enter a trigger source.", "warning");
+      if (!(amount >= 0)) return toast("Amount must be zero or greater.", "warning");
+
+      const isPayPalEvent = eventType === "PAYMENT.CAPTURE.COMPLETED";
+      const body = isPayPalEvent
+        ? { event_type: eventType, summary: source, resource: { amount: { value: amount.toFixed(2), currency_code: "USD" } } }
+        : { trigger_source: source, amount: amount, event_type: eventType };
+
+      const milestoneRow = document.getElementById("sim-milestone-row");
+      const stockRow = document.getElementById("sim-stock-row");
+      if (milestoneRow.style.display !== "none") body.checksum_verified = document.getElementById("sim-checksum").checked;
+      if (stockRow.style.display !== "none") body.in_stock = document.getElementById("sim-instock").checked;
+
+      const button = document.getElementById("dispatch-btn");
+      setBusy(button, true, "Sending…");
+      try {
+        const res = await fetch(isPayPalEvent ? "/api/webhooks/paypal" : "/api/webhooks/external", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const data = await readJson(res);
+        const results = (data.evaluation && data.evaluation.results) || [];
+        if (!results.length) {
+          toast("Event received — no active mandate matched it.", "warning");
+        } else {
+          const first = results[0];
+          const verdict = first.verdict || "PROCESSED";
+          const messages = {
+            CAPTURED: `Captured ${money(first.amount || first.payout || amount)} via the firewall.`,
+            BLOCKED: `Firewall froze ${money(first.blocked_amount || amount)} before capture. Review it in mandates.`,
+            HOLD_INSUFFICIENT_TRIGGER: "Condition not met — funds held and mandate kept armed.",
+            PAYMENT_FAILED: "PayPal capture failed. Mandate was re-armed; no funds moved."
+          };
+          toast(messages[verdict] || ("Processed: " + verdict), verdict === "BLOCKED" || verdict === "PAYMENT_FAILED" ? "warning" : "success");
+        }
+        closeModal("sim-modal");
+        await refreshState(true);
+      } catch (err) {
+        toast(err.message, "error");
+      } finally {
+        setBusy(button, false);
+      }
+    }
+
+    /* ---------- boot ---------- */
+
+    applyPreset();
+    refreshState(true);
+
+    setInterval(() => {
+      if (!document.hidden) refreshState(false);
+    }, 3000);
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshState(false);
+    });
+  </script>
+</body>
+</html>
